@@ -1,0 +1,28 @@
+# ===== Python / Django =====
+__pycache__/
+*.py[cod]
+*.log
+*.sqlite3
+db.sqlite3
+.env
+
+# Virtualenv
+venv/
+.venv/
+
+# ===== Node / Expo =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# ===== OS / IDE =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
