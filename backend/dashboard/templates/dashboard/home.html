@@ -1,0 +1,27 @@
+{% extends "dashboard/base.html" %}
+
+{% block content %}
+<h2>Visão Geral</h2>
+
+{% if api_error %}
+  <p style="color:red">Erro ao buscar dados: {{ api_error }}</p>
+{% endif %}
+
+<h3>Jornadas Ativas</h3>
+<ul>
+  {% for shift in active_shifts %}
+    <li>{{ shift.inspector_name }} – iniciado em {{ shift.start_time }}</li>
+  {% empty %}
+    <li>Nenhuma jornada ativa</li>
+  {% endfor %}
+</ul>
+
+<h3>Fraudes Abertas</h3>
+<ul>
+  {% for fraud in open_frauds %}
+    <li>{{ fraud.type }} – {{ fraud.created_at }}</li>
+  {% empty %}
+    <li>Nenhuma fraude pendente 🎉</li>
+  {% endfor %}
+</ul>
+{% endblock %}

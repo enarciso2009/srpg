@@ -11,9 +11,11 @@ from django.utils.dateparse import parse_date
 from django.db.models import F, ExpressionWrapper, DurationField
 from datetime import timedelta
 from math import radians, cos, sin, asin, sqrt
+from .utils.antifraud import distance_km
 from .serializers import (WorkShiftSerializer, WorkShiftTrackingSerializer,
                           WorkShiftLocationSerializer, FraudAlertSerializer)
-from .utils.antifraud import distance_km
+from drf_spectacular.utils import (extend_schema, OpenApiExample, OpenApiResponse)
+
 
 
 def haversine(lat1, lon1, lat2, lon2):
@@ -68,10 +70,62 @@ def create_fraud_alert(user, fraud_type, description, work_shift=None):
 
 class StartShiftView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-
+    @extend_schema(
+        tags=["Attendance"],
+        summary="Iniciar jornada de trabalho",
+        description=(
+            'Inicia uma nova jornada de trabalho para o colaborador autenticado. '
+            'É obrigatorio informar o dispositivo e a localização inicial. '
+        ),
+        request={
+            "application/json":{
+                "type": "object",
+                "properties": {
+                    "device_id": {
+                        "type": "string",
+                        "example": "DEVICE123"
+                    },
+                    "latitude": {
+                        "type": "number",
+                        "example": -23.5505
+                    },
+                    "longitude": {
+                        "type": "number",
+                        "example": -46.6333
+                    }
+                },
+                "required": ["device_id", "latitude", "longitude"]
+            }
+        },
+        responses={
+            201: OpenApiResponse(
+                description="Jornada iniciada com sucesso",
+                examples=[
+                    OpenApiExample(
+                        "Sucesso",
+                        value={
+                            "id": 1,
+                            "start_time": "2025-01-01T08:00:00Z",
+                            "status": "ACTIVE"
+                        }
+                    )
+                ]
+            ),
+            400: OpenApiResponse(
+                description="Dados inválidos ou dispositivo ausente",
+                examples=[
+                    OpenApiExample(
+                        "Erro",
+                        value={
+                            "error": "Device ID is required"
+                        }
+                    )
+                ]
+            ),
+            401: OpenApiResponse(description="usuário não autenticado"),
+        }
+    )
     def post(self, request, *args, **kwargs):
-        print("USER:", request.user)
-        print("DATA:", request.data)
         user = request.user
         device_id = request.data.get("device_id")
         if not device_id:
@@ -151,6 +205,57 @@ class StartShiftView(APIView):
 
 class EndShiftView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    @extend_schema(
+        tags=['Attendance'],
+        summary="Encerrar jornada de trabalho",
+        description=(
+            "Encerra a jornada ativa do colaborador autenticado. "
+            "É obrigatório informar a localização final."
+        ),
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "latitude": {
+                        "type": "number",
+                        "example": -23.5510
+                    },
+                    "longitude": {
+                        "type": "number",
+                        "example": -46.6340
+                    }
+                },
+                "required": ["latitude", "longitude"]
+            }
+        },
+        responses={
+            200: OpenApiResponse(
+                description="Jornada encerrada com sucesso",
+                examples=[
+                    OpenApiExample(
+                        "Sucesso",
+                        value={
+                            "id": 1,
+                            "end_time": "2025-01-01T17:00:00Z",
+                            "status": "FINISHED"
+                        }
+                    )
+                ]
+            ),
+            400: OpenApiResponse(
+                description="Nenhuma jornada ativa encontrada",
+                examples=[
+                    OpenApiExample(
+                        "Sem jornada",
+                        value={
+                            "error": "No active shift found"
+                        }
+                    )
+                ]
+            ),
+            401: OpenApiResponse(description="Usuário não autenticado"),
+        }
+    )
 
     def post(self, request, *args, **kwargs):
         user = request.user
@@ -288,6 +393,36 @@ class ShiftReportView(APIView):
 
 class ShiftTrackingView(APIView):
     permission_classes = [IsAuthenticated]
+    @extend_schema(
+        tags=["Tracking"],
+        summary="Localização em tempo real dos colaboradores",
+        description=(
+            "Retorna a última localização conhecida dos colaboradores"
+            "que estão com jornada ativa no momento. "
+            "Endpoint utilizado pelo painel da logística."
+        ),
+        responses={
+            200: OpenApiResponse(
+                description="Lista de colaboradores ativos com localização",
+                examples=[
+                    OpenApiExample(
+                        "Tracking",
+                        value=[
+                            {
+                                "user": "user1@test.com",
+                                "latitude": -23.5505,
+                                "longitude": -46.6333,
+                                "last_update": "2025-01-01T10:45:00Z",
+                                "shift_id": 12
+                            }
+                        ]
+                    )
+                ]
+            ),
+            403: OpenApiResponse(description="Permissão negada"),
+            401: OpenApiResponse(description="Usuário não autenticado")
+        }
+    )
 
     def post(self, request):
         user = request.user
@@ -393,7 +528,35 @@ class ShiftTrackingView(APIView):
 
 class FraudAlertListView(generics.ListAPIView):
     serializer_class = FraudAlertSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated]
+    @extend_schema(
+        tags=["Fraud"],
+        summary="Listar alertas de fraude do usuário",
+        description=(
+            "Retorna todos os alertas de fraude associados ao usuário autenticado. "
+            "Este endpoint é destinado ao próprio colaborador."
+        ),
+        responses={
+            200: OpenApiResponse(
+                description="Lista de alertas de fraude",
+                examples=[
+                    OpenApiExample(
+                        "Lista",
+                        value=[
+                            {
+                                "id": 1,
+                                "score": 85,
+                                "severity": 'HIGH',
+                                "resolved": False,
+                                "created_at": "2025-01-01T10:30:00Z"
+                            }
+                        ]
+                    )
+                ]
+            ),
+            401: OpenApiResponse(description="Usuário não autenticado"),
+        }
+    )
 
     def get_queryset(self):
         return FraudAlert.objects.filter(
@@ -403,12 +566,67 @@ class FraudAlertListView(generics.ListAPIView):
 class FraudAlertAdminListView(generics.ListAPIView):
     serializer_class = FraudAlertSerializer
     permission_classes = [IsAdminUser]
+    @extend_schema(
+        tags=["Fraud"],
+        summary="Listar todos os alertas de fraude (Admin)",
+        description=(
+            "Retorna todos os alertas de fraude do sistema. "
+            "Acesso restrito a usuários administrativos."
+        ),
+        responses={
+            200: OpenApiResponse(
+                description="Lista completa de fraudes",
+                examples=[
+                    OpenApiExample(
+                        "Admin",
+                        value=[
+                            {
+                                "id": 1,
+                                "user": "user1@test.com",
+                                "score": 92,
+                                "severity": "CRITICAL",
+                                "resolved": False,
+                                "created_at": "2025-01-01T11:00:00Z"
+                            }
+                        ]
+                    )
+                ]
+            ),
+            403: OpenApiResponse(description="Permissao negada"),
+            401: OpenApiResponse(description="Usuário não autenticado"),
+        }
+    )
 
     def get_queryset(self):
         return FraudAlert.objects.all().order_by('-created_at')
 
 class FraudAlertResolveView(APIView):
     permission_classes = [IsAdminUser]
+    @extend_schema(
+        tags=['Fraud'],
+        summary="Resolver alterta de fraude",
+        description=(
+            "Marca um alerta de fraude como resolvido. "
+            "Acesso restrito a adminitradores."
+        ),
+        responses={
+            200: OpenApiResponse(
+                description="Fraude resolvida com sucesso",
+                examples=[
+                    OpenApiExample(
+                        "Resolvido",
+                        value={
+                            "id": 1,
+                            "resolved": True
+                        }
+                    )
+                ]
+            ),
+            404: OpenApiResponse(description="Alerta de fraude não encontrado"),
+            403: OpenApiResponse(description="Permissão negada"),
+            401: OpenApiResponse(description="Usuário não autenticado"),
+        }
+    )
 
     def post(self, request, pk):
         try:
