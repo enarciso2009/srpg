@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
+from django_extensions.management.commands.export_emails import full_name
 
 
 class UserManager(BaseUserManager):
@@ -34,6 +35,8 @@ class User(AbstractUser):
     username = None
     email = models.EmailField(unique=True)
 
+    phone = models.CharField(max_length=20, blank=True, null=True, help_text="Telefone com DDD (ex: 21999998888")
+
     is_employee = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
 
@@ -53,6 +56,10 @@ class Employee(models.Model):
     base_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     base_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def get_display_name(self):
+        full_name = self.user.get_full_name()
+        return full_name if full_name else self.user.email
 
 
     def __str__(self):

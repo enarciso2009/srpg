@@ -1,0 +1,79 @@
+{% extends "dashboard/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+
+    <h3 class="mb-4">Relatório de Jornadas</h3>
+
+    <!-- FILTROS -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form id="report-filter-form" class="row g-3">
+
+                <div class="col-md-3">
+                    <label class="form-label">Data inicial</label>
+                    <input type="date" id="start_date" class="form-control">
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Data final</label>
+                    <input type="date" id="end_date" class="form-control">
+                </div>
+
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="button"
+                            id="btn-load-report"
+                            class="btn btn-primary w-100">
+                        Gerar relatório
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+    <!-- TABELA -->
+    <div class="card">
+        <div class="card-body">
+
+            <table class="table table-bordered table-striped" id="report-table">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Data</th>
+                        <th>Entrada</th>
+                        <th>Saída</th>
+                        <th>Duração</th>
+                        <th>Atraso</th>
+                        <th>Hora Extra</th>
+                        <th>Ajuste</th>
+                    </tr>
+                </thead>
+
+                <tbody id="report-body">
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">
+                            Utilize os filtros para gerar o relatório
+                        </td>
+                    </tr>
+                </tbody>
+
+                <!-- RODAPÉ COM TOTAIS -->
+                <tfoot class="table-secondary">
+                    <tr>
+                        <th colspan="3" class="text-end">Totais</th>
+                        <th id="total-duration">00:00</th>
+                        <th id="total-delay">00:00</th>
+                        <th id="total-extra">00:00</th>
+                        <th></th>
+                    </tr>
+                </tfoot>
+            </table>
+
+        </div>
+    </div>
+
+</div>
+
+<script src="{% static 'dashboard/js/workshift_report.js' %}"></script>
+
+{% endblock %}

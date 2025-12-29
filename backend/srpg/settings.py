@@ -12,7 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 
-
+from datetime import timedelta
 from django.conf.global_settings import LOGIN_REDIRECT_URL, LOGOUT_REDIRECT_URL
 
 
@@ -48,6 +48,8 @@ INSTALLED_APPS = [
 
     # Third-party
     "rest_framework",
+    "rest_framework.authtoken",
+    "rest_framework_simplejwt",
     "django_filters",
     "drf_spectacular",
     # Local apps
@@ -76,7 +78,9 @@ ROOT_URLCONF = "srpg.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [
+            BASE_DIR / 'templates',
+        ],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -126,7 +130,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "America/Sao_Paulo"
 
 USE_I18N = True
 
@@ -167,3 +171,7 @@ LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 API_BASE_URL = "http://127.0.0.1:8000/api"
 
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+}

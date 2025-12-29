@@ -1,5 +1,12 @@
 {% extends "dashboard/base.html" %}
 
+{% block extra_head %}
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+{% endblock extra_head %}
+
 {% block content %}
 <h2>Visão Geral</h2>
 
@@ -10,18 +17,171 @@
 <h3>Jornadas Ativas</h3>
 <ul>
   {% for shift in active_shifts %}
-    <li>{{ shift.inspector_name }} – iniciado em {{ shift.start_time }}</li>
+    <li>
+      <a href="javascript:void(0)"
+         onclick="abrirModalWhatsApp(
+             '{{ shift.inspector_name | escapejs }}',
+             '{{ shift.phone|default:''}}'
+             )"
+             style="cursor:pointer; font-weight:600; color:#0d6efd; text-decoration: underline;">
+        {{ shift.inspector_name }}
+      </a>
+      - iniciado em {{ shift.start_time }}
+    </li>
   {% empty %}
     <li>Nenhuma jornada ativa</li>
   {% endfor %}
 </ul>
+<div id="whatsappModal" style="display:none; position:fixed; inset:0; background: rgba(0,0,0,.6); z-index: 9999;">
+  <div style="background: #ffffff; width: 400px; margin: 10% auto; padding: 20px; border-radius: 8px;">
+    <h4>Enviar para vistoriador</h4>
 
-<h3>Fraudes Abertas</h3>
-<ul>
-  {% for fraud in open_frauds %}
-    <li>{{ fraud.type }} – {{ fraud.created_at }}</li>
-  {% empty %}
-    <li>Nenhuma fraude pendente 🎉</li>
-  {% endfor %}
-</ul>
-{% endblock %}
+    <input type="hidden" id="modalVistoriador">
+    <input type="hidden" id="modalCelular">
+
+    <label>Cliente</label>
+    <input id="modalCliente" style="width: 100%">
+
+    <label>Endereço</label>
+    <input id="modalEndereco" style="width: 100%">
+
+    <label>Contato</label>
+    <input id="modalContato" style="width: 100%">
+
+    <label>Telefone</label>
+    <input id="modalTelefone" style="width: 100%">
+
+    <label>Horário</label>
+    <input id="modalHorario" type="time" style="width: 100%">
+
+    <br><br>
+    <button onclick="confirmarWhatsApp()">Enviar</button>
+    <button onclick="fecharModal()">Cancelar</button>
+
+  </div>
+</div>
+
+<h3>Fraudes</h3>
+<p>
+  <a href="{% url 'dashboard:dashboard-fraudes' %}">Ver alertas de fraude</a>
+
+</p>
+
+<div class="card mt-4">
+  <div class="card-header">
+    <h5 class="mb-0">Vistoriadores Ativos (Mapa)</h5>
+  </div>
+  <div class="card-body">
+    <div
+      id="tracking-map"
+      style="height: 400px; width: 100%; border-radius: 8px; background:#eee;"
+    ></div>
+  </div>
+</div>
+{% endblock content %}
+
+{% block extra_scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const map = L.map("tracking-map").setView([-22.9068, -43.1729], 12);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap",
+  }).addTo(map);
+
+  fetch("/api/attendance/tracking/dashboard/", {
+    credentials: "same-origin",
+  })
+    .then(res => {
+      if (!res.ok) throw new Error("Erro ao buscar tracking");
+      return res.json();
+    })
+    .then(data => {
+      if (!data.length) {
+        console.log("Nenhum vistoriador ativo");
+        return;
+      }
+
+      data.forEach(item => {
+        L.marker([item.latitude, item.longitude])
+          .addTo(map)
+          .bindPopup(`
+            <strong>${item.name}</strong><br>
+            Última atualização: ${item.last_update}<br><br>
+            <button onclick='enviarWhatsApp({
+              vistoriador: "${item.name}",
+              celular: "${item.phone || ""}",
+              cliente: "CLIENTE A DEFINIR",
+              endereco: "ENDEREÇO A DEFINIR",
+              contato: "CONTATO A DEFINIR",
+              telefone: "TELEFONE A DEFINIR",
+              horario: "HORÁRIO A DEFINIR"
+            })'>
+              📲 Enviar WhatsApp
+            </button>
+          `);
+
+
+      });
+
+      map.invalidateSize();
+    })
+    .catch(err => console.error(err));
+});
+</script>
+<script>
+function enviarWhatsApp(dados) {
+  const mensagem =
+`📋 *Nova vistoria agendada*
+
+👷 Vistoriador: ${dados.vistoriador}
+🏢 Cliente: ${dados.cliente}
+📍 Endereço: ${dados.endereco}
+👤 Contato: ${dados.contato}
+📞 Telefone: ${dados.telefone}
+⏰ Horário: ${dados.horario}
+`;
+
+  const phone = dados.celular.replace(/\D/g, '');
+  const url = `https://wa.me/55${phone}?text=${encodeURIComponent(mensagem)}`;
+  window.open(url, "_blank");
+}
+</script>
+<script>
+function abrirModalWhatsApp(vistoriador, celular) {
+  document.getElementById("modalVistoriador").value = vistoriador;
+  document.getElementById("modalCelular").value = celular;
+
+  document.getElementById("modalCliente").value = "";
+  document.getElementById("modalEndereco").value = "";
+  document.getElementById("modalContato").value = "";
+  document.getElementById("modalTelefone").value = "";
+  document.getElementById("modalHorario").value = "";
+
+  document.getElementById("whatsappModal").style.display = "block";
+}
+
+function fecharModal() {
+  document.getElementById("whatsappModal").style.display = "none";
+}
+
+function confirmarWhatsApp() {
+  const dados = {
+    vistoriador: document.getElementById("modalVistoriador").value,
+    celular: document.getElementById("modalCelular").value,
+    cliente: document.getElementById("modalCliente").value,
+    endereco: document.getElementById("modalEndereco").value,
+    contato: document.getElementById("modalContato").value,
+    telefone: document.getElementById("modalTelefone").value,
+    horario: document.getElementById("modalHorario").value
+  };
+
+  enviarWhatsApp(dados);
+  fecharModal();
+}
+</script>
+
+
+{% endblock extra_scripts %}

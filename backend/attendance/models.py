@@ -1,7 +1,5 @@
-from django.conf import settings
 from accounts.models import Employee
 from django.db import models
-from django.db.models import Q
 from django.utils import timezone
 from django.conf import settings
 
@@ -15,7 +13,17 @@ class WorkShift(models.Model):
 
     end_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     end_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+
     create_at = models.DateTimeField(auto_now_add=True)
+    duration = models.DurationField(null=True, blank=True)
+
+    # Ajuste manual da jornada
+
+    adjusted_end_time = models.DateTimeField(null=True, blank=True)
+    adjustment_reason = models.TextField(null=True, blank=True)
+
+    adjusted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="workshift_adjustfments")
+    adjusted_at = models.DateTimeField(null=True, blank=True)
 
     @property
     def status(self):
@@ -23,6 +31,30 @@ class WorkShift(models.Model):
 
     def __str__(self):
         return f'{self.employee.user.email} - {self.status}'
+
+    def get_duration_minutes(self):
+        end_time = self.get_effective_end_time()
+
+        if not self.start_time or not end_time:
+            return 0
+
+        delta = end_time - self.start_time
+        return int(delta.total_seconds() / 60)
+
+    def get_effective_end_time(self):
+        """
+        Retorna a hora final efetiva da jornada,
+        considerando ajustes, se existirem.
+        """
+        return self.adjusted_end_time or self.end_time
+
+    def was_adjusted(self):
+        """
+        Indica se a jornada sofreu ajuste manual
+        """
+        return bool(self.adjusted_end_time)
+
+
 
 class WorkShiftLocation(models.Model):
     work_shift = models.ForeignKey(WorkShift, on_delete=models.CASCADE, related_name="locations")

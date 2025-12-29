@@ -1,0 +1,121 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}SRPG - Fraudes{% endblock %}
+
+{% block content %}
+<h2>Alertas de Fraude</h2>
+
+<table width="100%" border="1" cellpadding="8" cellspacing="0">
+  <thead>
+    <tr>
+      <th>Empregado</th>
+      <th>Tipo</th>
+      <th>Descrição</th>
+      <th>Data</th>
+      <th>Status</th>
+      <th>Ação</th>
+    </tr>
+  </thead>
+  <tbody id="fraud-table-body">
+    <tr>
+      <td colspan="6">Carregando...</td>
+    </tr>
+  </tbody>
+</table>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== "") {
+    const cookies = document.cookie.split(";");
+    for (let cookie of cookies) {
+      cookie = cookie.trim();
+      if (cookie.startsWith(name + "=")) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+</script>
+
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  loadFrauds();
+});
+
+function loadFrauds() {
+  fetch("/api/attendance/fraud-admin-json/", { credentials: "same-origin" })
+    .then(res => {
+      if (!res.ok) throw new Error("Erro ao buscar fraudes");
+      return res.json();
+    })
+    .then(data => {
+      const tbody = document.getElementById("fraud-table-body");
+      tbody.innerHTML = "";
+
+      if (!data.length) {
+        tbody.innerHTML = "<tr><td colspan='6'>Nenhuma fraude encontrada</td></tr>";
+        return;
+      }
+
+      data.forEach(fraud => {
+        const tr = document.createElement("tr");
+
+        tr.innerHTML = `
+          <td>
+            <strong>${fraud.employee_name}</strong><br>
+            <small>Matricula: ${fraud.matricula}</small>
+          </td>
+          <td>${fraud.fraud_type}</td>
+          <td>${fraud.description}</td>
+          <td>${new Date(fraud.created_at).toLocaleString()}</td>
+          <td>${fraud.resolved ? "Resolvida" : "Aberta"}</td>
+          <td>
+            ${fraud.resolved ? "-" : `<button onclick="resolveFraud(${fraud.id})">Resolver</button>`}
+          </td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(err => {
+      console.error(err);
+      const tbody = document.getElementById("fraud-table-body");
+      tbody.innerHTML = "<tr><td colspan='6' style='color:red'>Erro ao carregar fraudes</td></tr>";
+    });
+}
+
+
+
+function resolveFraud(id) {
+  if (!confirm("Deseja resolver esta fraude?")) return;
+
+  fetch(`/api/attendance/fraud-alerts/${id}/resolve/`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers:{
+      "X-CSRFToken": getCookie("csrftoken"),
+      "Content-Type": "application/json"
+    }
+  })
+    .then(res => {
+      if (!res.ok) throw new Error("Erro ao resolver fraude");
+      return res.json();
+    })
+    .then(() => {
+      alert("Fraude resolvida com sucesso");
+      loadFrauds();
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Erro ao resolver fraude");
+    });
+}
+</script>
+{% endblock %}

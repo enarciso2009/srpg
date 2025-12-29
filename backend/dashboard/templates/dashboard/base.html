@@ -1,12 +1,13 @@
-<!DOCTIYPE html>
+<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>{% block title %} SRPG - Dashboard{% endblock %}</title>
+    <title>{% block title %}SRPG - Dashboard{% endblock %}</title>
 
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <!-- CSS simples por enquanto -->
+    {% block extra_head %}{% endblock %}
+
     <style>
         body {
             margin: 0;
@@ -32,12 +33,61 @@
 <body>
 
 <header>
-    <h2>SRPG - Painel da Logistica</h2>
+    <h2>SRPG - Painel da Logística</h2>
 </header>
 
 <main>
     {% block content %}{% endblock %}
 </main>
+
+{% block extra_scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const map = L.map("tracking-map").setView([-23.5505, -46.6333], 12);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap",
+    }).addTo(map);
+
+    let markers = {};
+
+    async function loadTracking() {
+      try {
+        const response = await fetch("/attendance/tracking/");
+        if (!response.ok) {
+          console.error("Erro ao buscar tracking");
+          return;
+        }
+
+        const data = await response.json();
+
+        data.forEach((item) => {
+          const key = item.inspector_id;
+
+          if (markers[key]) {
+            markers[key].setLatLng([item.latitude, item.longitude]);
+          } else {
+            markers[key] = L.marker([item.latitude, item.longitude])
+              .addTo(map)
+              .bindPopup(
+                `<strong>${item.name}</strong><br>Última atualização: ${item.last_update}`
+              );
+          }
+        });
+      } catch (err) {
+        console.error("Erro no tracking:", err);
+      }
+    }
+
+    loadTracking();
+    setInterval(loadTracking, 10000); // atualiza a cada 10s
+  });
+</script>
+{% endblock %}
+
 
 </body>
 </html>
