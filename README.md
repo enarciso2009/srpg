@@ -9,6 +9,16 @@
 Sistema de Registro e Gestão de Presenças (SRPG)  
 Projeto **fullstack** com **Django** no backend e **React Native / Expo** no mobile.
 
+Sistema de registro de presença com controle de início e fim de turno, acompanhamento de funcionários 
+externos por geolocalização em tempo real e visualização em mapa para apoio à gestão logística.
+
+O sistema realiza validações automáticas para identificação de possíveis fraudes, como 
+inconsistências de localização, sobreposição de turnos e registros fora dos padrões definidos, permitindo 
+ação rápida da gestão.
+
+Também oferece envio de mensagens operacionais aos colaboradores, facilitando orientações e 
+comunicação durante o turno.
+
 ---
 
 ## 🗂 Estrutura do projeto
