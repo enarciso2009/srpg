@@ -1,7 +1,8 @@
 # attendance/services/workshift_service.py
-
 from decimal import Decimal
 from datetime import timedelta
+from django.db import models
+from django.template.loader import render_to_string
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
@@ -11,6 +12,83 @@ from accounts.models import Employee, UserDevice
 
 # Utils
 from attendance.utils.antifraud import distance_km, haversine
+
+
+
+def get_workshifts_for_user(user, start_date=None, end_date=None):
+    """
+    Retorna os workshifts do usuário logado com os totais de duração, atraso e hora extra.
+    start_date e end_date podem ser usados para filtrar o período.
+    Considera a jornada padrão do funcionário.
+    """
+    from attendance.models import WorkShift
+    from datetime import datetime
+    employee = Employee.objects.get(user=user)
+
+    queryset = WorkShift.objects.filter(employee=employee)
+
+    if start_date:
+        queryset = queryset.filter(start_time__date__gte=start_date)
+    if end_date:
+        queryset = queryset.filter(
+            models.Q(end_time__date__lte=end_date) |
+            models.Q(end_time__isnull=True)
+        )
+
+    queryset = queryset.order_by("start_time")
+
+    rows = []
+    total_duration = timedelta()
+    total_delay = timedelta()
+    total_extra = timedelta()
+
+    jornada_padrao = employee.jornada or datetime.strptime("08:00", "%H:%M").time()
+    jornada_padrao_minutos = jornada_padrao.hour * 60 + jornada_padrao.minute
+
+    for shift in queryset:
+        if not shift.start_time:
+            continue
+
+        end_time = shift.end_time or timezone.now()
+        duration_td = end_time - shift.start_time
+        duration_minutes = int(duration_td.total_seconds() // 60)
+
+        delay_minutes = max(jornada_padrao_minutos - duration_minutes, 0)
+        extra_minutes = max(duration_minutes - jornada_padrao_minutos, 0)
+
+        effective_date = (
+            shift.end_time.date()
+            if shift.end_time
+            else shift.start_time.date()
+        )
+        rows.append({
+            "date": effective_date.strftime("%d-%m-%Y"),
+            "start_time": timezone.localtime(shift.start_time).strftime("%H:%M") if shift.start_time else "-",
+            "end_time": timezone.localtime(shift.end_time).strftime("%H:%M") if shift.end_time else "-",
+            "duration": f"{duration_minutes//60:02d}:{duration_minutes%60:02d}",
+            "delay": f"{delay_minutes//60:02d}:{delay_minutes%60:02d}" if delay_minutes else "00:00",
+            "extra": f"{extra_minutes//60:02d}:{extra_minutes%60:02d}" if extra_minutes else "00:00",
+            "adjusted": getattr(shift, 'adjusted', False),
+        })
+
+        total_duration += timedelta(minutes=duration_minutes)
+        total_delay += timedelta(minutes=delay_minutes)
+        total_extra += timedelta(minutes=extra_minutes)
+
+    def format_timedelta(td):
+        total_minutes = int(td.total_seconds() // 60)
+        hours = total_minutes // 60
+        minutes = total_minutes % 60
+        return f"{hours:02d}:{minutes:02d}"
+
+    totals = {
+        "total_duration": format_timedelta(total_duration),
+        "total_delay": format_timedelta(total_delay),
+        "total_extra": format_timedelta(total_extra),
+    }
+
+    return rows, totals
+
 
 
 def parse_coordinate(value):
@@ -58,6 +136,8 @@ def create_fraud_alert(user, fraud_type, description, work_shift=None):
 
 def start_shift(user, latitude, longitude):
     """Inicia um turno para um funcionário"""
+
+
     try:
         employee = user.employee
         if not employee.ativo:
@@ -95,6 +175,13 @@ def start_shift(user, latitude, longitude):
         start_latitude=lat,
         start_longitude=lon,
         start_time=timezone.now()
+    )
+
+    WorkShiftLocation.objects.create(
+        work_shift=shift,
+        latitude=latitude,
+        longitude=longitude,
+
     )
     return shift
 

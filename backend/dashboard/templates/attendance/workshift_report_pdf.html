@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    <style>
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 11px;
+    color: #1f2937;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    text-align: center;
+    font-size: 11px;
+    margin-bottom: 20px;
+    color: #475569;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+
+  th, td {
+    border: 1px solid #cbd5e1;
+    padding: 6px;
+    text-align: center;
+  }
+
+  th {
+    background-color: #e2e8f0;
+    font-weight: bold;
+  }
+
+  .signature-container {
+    margin-top: 50px;
+    text-align: center;
+  }
+
+  .signature-box {
+    display: inline-block;
+    width: 260px;
+    height: 120px;
+    border-bottom: 1px solid #000;
+    padding: 5px;
+  }
+
+  .signature-box img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  .signature-rotated img {
+    transform: rotate(-90deg);
+  }
+
+  .signature-info {
+    margin-top: 6px;
+    font-size: 10px;
+  }
+
+  footer {
+    position: fixed;
+    bottom: 15px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 9px;
+    color: #64748b;
+  }
+</style>
+
+  </style>
+</head>
+<body>
+  <h1>Espelho de Ponto - {{ user.get_full_name }}</h1>
+  {% if start_date and end_date %}
+    <p class="period">Período: {{ start_date|date:"d-m-Y" }} a {{ end_date|date:"d-m-Y" }}</p>
+  {% endif %}
+  <table>
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Entrada</th>
+        <th>Saída</th>
+        <th>Duração</th>
+        <th>Atrasos</th>
+        <th>Extras</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.date }}</td>
+          <td>{{ row.start_time|default:"-" }}</td>
+          <td>{{ row.end_time|default:"-" }}</td>
+          <td>{{ row.duration }}</td>
+          <td>{{ row.delay }}</td>
+          <td>{{ row.extra }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="totals">
+    Totais - Duração: {{ totals.total_duration }} | Atraso: {{ totals.total_delay }} | Extra: {{ totals.total_extra }}
+  </p>
+
+  {% if signature_base64 %}
+  <div class="signature-container">
+    <div class="signature-box {% if signature_rotated %}signature-rotated{% endif %}">
+      <img src="{{ signature_base64 }}" alt="Assinatura" />
+    </div>
+
+    <div class="signature-info">
+      {{ user.get_full_name }}<br />
+      Assinado em {{ signed_at|date:"d/m/Y H:i" }}
+    </div>
+  </div>
+{% else %}
+  <p style="margin-top: 60px; text-align: center; color: #64748b;">
+    Documento gerado sem assinatura
+  </p>
+{% endif %}
+
+<footer>
+  Documento gerado eletronicamente • Sistema de Controle de Jornada<br/>
+  Usuário: {{ user.email }} • Emissão: {{ signed_at|date:"d/m/Y H:i" }}
+</footer>
+

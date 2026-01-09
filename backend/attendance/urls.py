@@ -1,38 +1,33 @@
 from django.urls import path
-from .views import (
-    StartShiftView,
-    EndShiftView,
-    ShiftListView,
-    ShiftListAllView,
-    ShiftFilteredView,
-    ShiftReportView,
-    ShiftTrackingView,
-    FraudAlertListView,
-    FraudAlertAdminListView,
-    FraudAlertResolveView,
-    ShiftTrackingDashboardView, frauds_admin_list, AdjustiShiftView
-)
-
+from . import views
+from .views import save_signature_api
 
 urlpatterns = [
-    path('start/', StartShiftView.as_view(), name='shift-start'),
-    path('end/', EndShiftView.as_view(), name='shift-end'),
+    path('start/', views.StartShiftView.as_view(), name='shift-start'),
+    path('end/', views.EndShiftView.as_view(), name='shift-end'),
 
-    path('workshift/<int:pk>/adjust/', AdjustiShiftView.as_view(), name='adjust-shift'),
+    path('workshift/<int:pk>/adjust/', views.AdjustiShiftView.as_view(), name='adjust-shift'),
 
-    path('myshifts/', ShiftListView.as_view(), name='shift-list-user'),
-    path('allshifts/', ShiftListAllView.as_view(), name='shift-list-all'),
+    path('myshifts/', views.ShiftListView.as_view(), name='shift-list-user'),
+    path('allshifts/', views.ShiftListAllView.as_view(), name='shift-list-all'),
 
-    path('filter/', ShiftFilteredView.as_view(), name='shift-filter'),
-    path('reports/workshift/', ShiftReportView.as_view(), name='workshift-report'),
+    path('filter/', views.ShiftFilteredView.as_view(), name='shift-filter'),
 
-    path('tracking/', ShiftTrackingView.as_view(), name='shift-tracking'),
-    path('tracking/dashboard/', ShiftTrackingDashboardView.as_view()),
+
+    path('reports/workshift/', views.ShiftReportView.as_view(), name='workshift-report'),
+    path('reports/workshift/pdf/', views.workshift_report_pdf_view, name='workshift-report-pdf'),
+    path('api/reports/workshift/pdf/', views.workshift_report_pdf_api, name='workshift-report-pdf-api'),
+    path('save-signature/', save_signature_api, name='save_signature_api'),
+
+    path('tracking/', views.ShiftTrackingView.as_view(), name='shift-tracking'),
+    path('tracking/dashboard/', views.ShiftTrackingDashboardView.as_view()),
 
     # 🔔 Fraud alerts
-    path('fraud-alerts/', FraudAlertListView.as_view(), name='fraud-alerts'),
-    path('fraud-alerts/all/', FraudAlertAdminListView.as_view(), name='fraud-alerts-all'),
-    path('fraud-alerts/<int:pk>/resolve/', FraudAlertResolveView.as_view(), name='fraud-resolve'),
-    path('fraud-admin-json/', frauds_admin_list, name='fraud-admin-json'),
+    path('fraud-alerts/', views.FraudAlertListView.as_view(), name='fraud-alerts'),
+    path('fraud-alerts/all/', views.FraudAlertAdminListView.as_view(), name='fraud-alerts-all'),
+    path('fraud-alerts/<int:pk>/resolve/', views.FraudAlertResolveView.as_view(), name='fraud-resolve'),
+    path('fraud-admin-json/', views.frauds_admin_list, name='fraud-admin-json'),
+
+
 
 ]

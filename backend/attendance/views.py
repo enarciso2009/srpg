@@ -1,24 +1,133 @@
 from django.contrib.auth.decorators import login_required
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.authentication import SessionAuthentication
-from django.http import JsonResponse
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from django.http import JsonResponse, HttpResponse
+from rest_framework.exceptions import PermissionDenied
 from decimal import Decimal
 from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from accounts.models import Employee, UserDevice
-from .models import WorkShift, WorkShiftTracking, WorkShiftLocation, FraudAlert
+from .models import WorkShift, WorkShiftLocation, FraudAlert
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from django.utils.dateparse import parse_date
-from django.db.models import F, ExpressionWrapper, DurationField
-from datetime import timedelta
 from math import radians, cos, sin, asin, sqrt
 from attendance.services.workshift_service import end_shift, start_shift, validate_user_device, track_location, \
-    adjust_shift_end, build_shift_report_row, totalize_report
-from .utils.antifraud import distance_km, haversine, create_fraud_alert
+    adjust_shift_end, build_shift_report_row, totalize_report, get_workshifts_for_user
+from .utils.antifraud import haversine
 from .serializers import WorkShiftSerializer, WorkShiftLocationSerializer, FraudAlertSerializer
 from drf_spectacular.utils import (extend_schema, OpenApiExample, OpenApiResponse)
+from django.template.loader import render_to_string
+from weasyprint import HTML
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from datetime import datetime
+
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+
+def save_signature_api(request):
+    print("CHEGOU NA SAVE_SIGNATURE_API")
+    print("USER", request.user)
+    print("DATA", request.data)
+
+    employee = Employee.objects.get(user=request.user)
+    signature_base64 = request.data.get("signature")
+
+    if not signature_base64:
+        return Response(
+            {"error": "Assinatura não enviada"},
+            status=400
+        )
+    employee.signature = signature_base64
+    employee.save()
+
+    return Response({"sucess": True})
+
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def workshift_report_pdf_api(request):
+    user = request.user
+    employee = user.employee
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    print("CHEGOU NA VIEW PDF")
+    print("USER:", request.user)
+    print("AUTH:", request.headers.get("Authorization"))
+
+    # Converte string para date se informado
+    try:
+        if start_date:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        if end_date:
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+    except ValueError:
+        start_date = end_date = None
+
+    # Pega os workshifts e totais
+
+    rows, totals = get_workshifts_for_user(user, start_date, end_date)
+
+    html_string = render_to_string(
+        "attendance/workshift_report_pdf.html",
+        {
+            "user": user,
+            "employee": employee,
+            "rows": rows,
+            "totals": totals,
+            "start_date": start_date,
+            "end_date": end_date,
+            "signature_base64": employee.signature,
+            "signature_rotated": True,
+            "signed_at": timezone.now(),
+        }
+    )
+
+    pdf_file = HTML(string=html_string).write_pdf()
+
+
+    # Retorna PDF como resposta
+
+    response = HttpResponse(pdf_file, content_type="application/pdf")
+    response['Content-Disposition'] = f'attachment; filename="relatorio_jornadas_{user.username}.pdf"'
+    return response
+
+
+
+@login_required
+def workshift_report_pdf_view(request):
+    user = request.user
+
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    # Pega os workshifts e totais
+    rows, totals = get_workshifts_for_user(user, start_date, end_date)
+
+    html_string = render_to_string(
+        "attendance/workshift_report_pdf.html",
+        {
+            "user": user,
+            "rows": rows,
+            "totals": totals,
+            "start_date": start_date,
+            "end_date": end_date,
+            "signature_base64": request.GET.get("signature")  # Base64 do mobile
+        }
+    )
+
+    pdf_file = HTML(string=html_string).write_pdf()
+
+    response = HttpResponse(pdf_file, content_type="application/pdf")
+    response['Content-Disposition'] = f'attachment; filename="relatorio_jornadas_{user.username}.pdf"'
+    return response
 
 
 
@@ -133,13 +242,22 @@ class StartShiftView(APIView):
     def post(self, request, *args, **kwargs):
         user =request.user
         device_id = request.data.get("device_id")
+
         if not device_id:
             return Response({"error": "device_id é obrigatŕio"}, status=status.HTTP_400_BAD_REQUEST)
-        validate_user_device(user, device_id)
 
         try:
-            shift = start_shift(user, request.data.get("latitude"), request.data.get("longitude"))
+            validate_user_device(user, device_id)
+
+            shift = start_shift(
+                user,
+                request.data.get("latitude"),
+                request.data.get("longitude")
+            )
+
         except PermissionDenied as e:
+            print("erro ao iniciar turno:", str(e))
+            print("Device Recebido:", device_id)
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = WorkShiftSerializer(shift)
@@ -441,7 +559,7 @@ class ShiftTrackingDashboardView(APIView):
 
             result.append({
                 "inspector_id": shift.employee.id,
-                "name": shift.employee.user.get_display_name(),
+                "name": shift.employee.user.get_full_name() or shift.employee.user.username,
                 "phone": shift.employee.user.phone,
                 "latitude": float(last_location.latitude),
                 "longitude": float(last_location.longitude),

@@ -53,6 +53,8 @@ class Employee(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="employee")
     matricula = models.CharField(max_length=30, unique=True)
     ativo = models.BooleanField(default=True)
+    jornada = models.TimeField(null=True, blank=True)
+    signature = models.TextField(null=True, blank=True)
     base_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     base_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -77,3 +79,5 @@ class UserDevice(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.device_id}"
+
+
